@@ -312,12 +312,35 @@ class BotExcelSalesforceApp(ctk.CTk):
                 btn_continuar = wait.until(EC.presence_of_element_located((By.XPATH, xpath_btn_continuar)))
                 js_click(btn_continuar)
                 time.sleep(3) 
+               # --- NOVA ETAPA: CHECAR SITUAÇÃO CADASTRAL RFB ---
+                try:
+                    self.log(" [AÇÃO] Verificando Situação Cadastral RFB...")
+                    xpath_situacao = "//span[text()='Situação Cadastral RFB']/ancestor::div[contains(@class, 'slds-form-element')]//force-record-output-picklist"
+                    
+                    # Usa um tempo menor aqui (ex: 5s) para não travar o bot se o campo não existir em algum tipo de registro
+                    situacao_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath_situacao)))
+                    scroll_ate(situacao_element)
+                    situacao = situacao_element.text.strip()
+                    
+                    if situacao in ["Suspensa", "Baixada"]:
+                        self.log(f" [PULO] CNPJ ignorado. Situação Cadastral RFB: {situacao}")
+                        
+                        # Clica no botão Cancelar para destravar a tela
+                        xpath_btn_cancelar = "//button[@name='CancelEdit' or @title='Cancelar']"
+                        btn_cancelar = wait.until(EC.presence_of_element_located((By.XPATH, xpath_btn_cancelar)))
+                        js_click(btn_cancelar)
+                        time.sleep(2)
+                        
+                        # Retorna o status direto para a planilha e pula pro próximo CNPJ
+                        return f"Pulado - RFB {situacao}"
+                        
+                except Exception:
+                    self.log(" [AVISO] Campo Situação Cadastral não encontrado ou visível. Seguindo fluxo...")
 
                 # --- NOVA ETAPA: TRATAMENTOS DE FORMULÁRIO ---
                 
                 if origem_texto == "CPE":
                     self.log(" [INFO] Executando rotina para Origem: CPE")
-                    
                     # 1. Tratamento Pessoas Ocupadas
                     xpath_pessoas = "//input[@name='PessoasOcupadas__c']"
                     input_pessoas = wait.until(EC.presence_of_element_located((By.XPATH, xpath_pessoas)))
@@ -345,6 +368,60 @@ class BotExcelSalesforceApp(ctk.CTk):
                         input_telefone.send_keys(telefone_limpo)
                         self.log(" [AÇÃO] Telefone preenchido.")
                         time.sleep(1)
+                   # 3. Tratamento do campo "Autoriza Receber Whatsapp?"
+                    xpath_btn_wpp = "//button[@aria-label='Autoriza Receber Whatsapp?']"
+                    btn_wpp = wait.until(EC.presence_of_element_located((By.XPATH, xpath_btn_wpp)))
+                    scroll_ate(btn_wpp)
+                    
+                    if btn_wpp.get_attribute("data-value") != "Sim":
+                        self.log(" [AÇÃO] Permissão de WhatsApp não está como 'Sim'. Alterando...")
+                        js_click(btn_wpp)
+                        time.sleep(1) 
+                        
+                        # Busca TODOS os "Sim" do site e clica apenas no que está aberto (visível)
+                        opcoes_sim = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//lightning-base-combobox-item[@data-value='Sim']")))
+                        for opcao in opcoes_sim:
+                            if opcao.is_displayed():
+                                js_click(opcao)
+                                break
+                        self.log(" [AÇÃO] Permissão marcada como 'Sim'.")
+                        time.sleep(0.5)
+
+                    # 4. Tratamento do campo "Autoriza Receber Ligação"
+                    xpath_btn_ligacao = "//button[@aria-label='Autoriza Receber Ligação']"
+                    btn_ligacao = wait.until(EC.presence_of_element_located((By.XPATH, xpath_btn_ligacao)))
+                    scroll_ate(btn_ligacao)
+                    
+                    if btn_ligacao.get_attribute("data-value") != "Sim":
+                        self.log(" [AÇÃO] Permissão de Ligação não está como 'Sim'. Alterando...")
+                        js_click(btn_ligacao)
+                        time.sleep(1) 
+                        
+                        opcoes_sim = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//lightning-base-combobox-item[@data-value='Sim']")))
+                        for opcao in opcoes_sim:
+                            if opcao.is_displayed():
+                                js_click(opcao)
+                                break
+                        self.log(" [AÇÃO] Permissão de Ligação marcada como 'Sim'.")
+                        time.sleep(0.5)
+
+                    # 5. Tratamento do campo "Autoriza Receber Mensagem"
+                    xpath_btn_mensagem = "//button[@aria-label='Autoriza Receber Mensagem']"
+                    btn_mensagem = wait.until(EC.presence_of_element_located((By.XPATH, xpath_btn_mensagem)))
+                    scroll_ate(btn_mensagem)
+                    
+                    if btn_mensagem.get_attribute("data-value") != "Sim":
+                        self.log(" [AÇÃO] Permissão de Mensagem não está como 'Sim'. Alterando...")
+                        js_click(btn_mensagem)
+                        time.sleep(1) 
+                        
+                        opcoes_sim = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//lightning-base-combobox-item[@data-value='Sim']")))
+                        for opcao in opcoes_sim:
+                            if opcao.is_displayed():
+                                js_click(opcao)
+                                break
+                        self.log(" [AÇÃO] Permissão de Mensagem marcada como 'Sim'.")
+                        time.sleep(0.5)
 
                 elif origem_texto == "CPE/Salesforce":
                     self.log(" [INFO] Executando rotina para Origem: CPE/Salesforce")
